@@ -1,0 +1,54 @@
+version: "3"
+
+services:
+  postgres:
+    image: postgres:9.6
+    container_name: tara-postgres
+    environment:
+      POSTGRES_USER: "hydra"
+      POSTGRES_PASSWORD: "secret"
+      POSTGRES_MULTIPLE_DATABASES: "hydra,eid_manager_development,eis_billing_system_development"
+      POSTGRES_MULTIPLE_USERS: "hydra,eid_manager_development,eis_billing_system_development"
+      POSTGRES_MULTIPLE_PASSWORDS: "password,password,password"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - docker-postgresql-multiple-databases:/docker-entrypoint-initdb.d
+      - tara-postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+  
+  manager:
+    tty: true
+    stdin_open: true
+    image: manager
+    build:
+      context: ./../eeID-manager
+      dockerfile: ./../eeID-manager/Dockerfile.dev
+    links:
+      - postgres
+      - redis
+      - chrome
+    environment:
+      - RAILS_ENV=development
+      - APP_DBHOST=postgres
+      - REDIS_URL=redis://redis:6379/12
+      - CHROME=chrome:4444
+    volumes:
+      - ./../eeID-manager:/opt/webapps/app
+      - ./shared/ca:/opt/ca
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails server -b 0.0.0.0"
+    restart: on-failure
+
+  chrome:
+    image: seleniarm/standalone-chromium:latest
+    ports:
+      - "3434:4444"
+      - "5900:5900"
+      - "7900:7900"
+
+volumes:
+  docker-postgresql-multiple-databases:
+  tara-postgres:
+    driver: local
+  tmp:
